@@ -1,104 +1,53 @@
 package main
 
 import (
-        "fmt"
-        "github.com/datastream/sqlgen"
-        "time"
+	"github.com/brutella/hc"
+	"github.com/brutella/hc/accessory"
+	"github.com/brutella/hc/service"
+	"log"
+	"strconv"
+	"time"
 )
+
 type Accessorys struct {
-	ID int
-	Key string
-	Name string
-	SerialNumber string
-	Manufacturer string
-	Model string
-	Pin string
-	AccessoryType string
-}
-func accessorysColumns() []string {
-	return []string{"id", "key", "name", "serial_number", "manu_facturer","model", "pin", "accessory_type", "created_at", "updated_at"}
-}
-func (ac *Accessorys)Save() error {
-	q := sqlgen.Insert("accessorys")
-        q.Columns(accessorysColumns()[1:]...)
-        t := time.Now().Format("2006-01-02 15:04:05")
-        q.Values([]interface{}{ac.Key, ac.Name, ac.SerialNumber, ac.Manufacturer, ac.Model, ac.Pin, ac.AccessoryType, t, t})
-        querystr, args, err := q.ToSQL()
-        if err == nil {
-                _, err = homekitBridge.db.Exec(sqlgen.PostgresSQLFormat(querystr), args...)
-        }
-        lo, err := FindAccessoryByKey(ac.Key)
-        if err == nil && lo.ID > 0 {
-                ac.ID = lo.ID
-        }
-        return err
+	Key           string `json:"key"`
+	Name          string `json:"name"`
+	SerialNumber  string `json:"serialNumber"`
+	Manufacturer  string `json:"manufacturer"`
+	Model         string `json:"model"`
+	Pin           string `json:"pin"`
+	AccessoryType string `json:"accessoryType"`
 }
 
-func FindAccessoryByKey(key string) (*Accessorys, error) {
-	var ac Accessorys
-	q := sqlgen.Select(accessorysColumns()...)
-        q.From("accessorys")
-        q.Where("key = ?", key)
-        querystr, args, err := q.ToSQL()
-        if err == nil {
-                err = homekitBridge.db.QueryRow(sqlgen.PostgresSQLFormat(querystr), args...).Scan(&ac.ID, &ac.Key, &ac.Name, &ac.SerialNumber,&ac.Manufacturer,ac.Model, ac.Pin, ac.AccessoryType, &ac.CreatedAt, &ac.UpdatedAt)
-        }
-	return &ac, err
+type HumiditySensor struct {
+	*accessory.Accessory
+
+	HumiditySensor *service.HumiditySensor
 }
 
-func FindAccessoryByID(ID int) (*Accessorys, error) {
-	var ac Accessorys
-	q := sqlgen.Select(accessorysColumns()...)
-        q.From("accessorys")
-        q.Where("id = ?", ID)
-        querystr, args, err := q.ToSQL()
-        if err == nil {
-                err = homekitBridge.db.QueryRow(sqlgen.PostgresSQLFormat(querystr), args...).Scan(&ac.ID, &ac.Key, &ac.Name, &ac.SerialNumber,&ac.Manufacturer,ac.Model, ac.Pin, ac.AccessoryType, &ac.CreatedAt, &ac.UpdatedAt)
-        }
-	return &ac, error
+func NewHumiditySensor(info accessory.Info, cur, min, max, steps float64) *HumiditySensor {
+	acc := HumiditySensor{}
+	acc.Accessory = accessory.New(info, accessory.TypeHumidifer)
+	acc.HumiditySensor = service.NewHumiditySensor()
+	acc.HumiditySensor.CurrentRelativeHumidity.SetValue(cur)
+	acc.HumiditySensor.CurrentRelativeHumidity.SetMinValue(min)
+	acc.HumiditySensor.CurrentRelativeHumidity.SetMaxValue(max)
+	acc.HumiditySensor.CurrentRelativeHumidity.SetStepValue(steps)
+
+	acc.AddService(acc.HumiditySensor.Service)
+
+	return &acc
 }
-
-func (ac *Accessorys)Destroy() error {
-	q := sqlgen.Delete()
-        q.From("accessorys")
-        q.Where("id = ?", ac.ID)
-        querystr, args, err := q.ToSQL()
-        if err == nil {
-                _, err = lb.db.Exec(sqlgen.PostgresSQLFormat(querystr), args...)
-        }
-        return err
-}
-
-func FindAllAccessorys() ([]Accessorys, error) {
-	var accessorys []Accessorys
-	q := sqlgen.Select(accessorysColumns()...)
-        q.From("accessorys")
-	querystr, args, err := q.ToSQL()
-        rst, err := homekitBridge.db.Query(sqlgen.PostgresSQLFormat(querystr), args...)
-        if err != nil {
-                return accessorys, err
-        }
-        for rst.Next() {
-                var accessory Accessorys
-                if err = rst.Scan(&ac.ID, &ac.Key, &ac.Name, &ac.SerialNumber,&ac.Manufacturer,ac.Model, ac.Pin, ac.AccessoryType, &ac.CreatedAt, &ac.UpdatedAt); err != nil {
-                        break
-                }
-                accessorys = append(accessorys, accessory)
-
-        }
-        return accessorys, err
-}
-
-func (ac *Accessorys)Task() error {
-	info := accessory.Info {
-		Name: ac.Name,
+func (ac *Accessorys) Task() {
+	info := accessory.Info{
+		Name:         ac.Name,
 		SerialNumber: ac.SerialNumber,
 		Manufacturer: ac.Manufacturer,
-		Model: ac.Model,
+		Model:        ac.Model,
 	}
 	switch ac.AccessoryType {
 	case "TemperatureSensor":
-		acc := accessory.NewTemperatureSensor(info,5,-100,50,0.1)
+		acc := accessory.NewTemperatureSensor(info, 5, -100, 50, 0.1)
 		config := hc.Config{Pin: ac.Pin}
 		t, err := hc.NewIPTransport(config, acc.Accessory)
 		if err != nil {
@@ -109,15 +58,49 @@ func (ac *Accessorys)Task() error {
 			t.Stop()
 		})
 		for {
-			acc.TempSensor.CurrentTemperature.SetValue(homekitBridge.cache.Get(ac.Key))
-			_, err := FindAccessoryByID(ac.ID)
-			if err != nil && err.Error() == "exists" {
-				t.Stop()
-				return
+			value, found := homekitBridge.cache.Get(ac.Key)
+			if !found {
+				log.Println("bad key", ac.Key)
+				time.Sleep(time.Second * 60)
+				continue
 			}
+			temp, err := strconv.ParseFloat(value.(string), 64)
+			if err != nil {
+				log.Println("bad value", value)
+				time.Sleep(time.Second * 60)
+				continue
+			}
+			acc.TempSensor.CurrentTemperature.SetValue(temp)
 			time.Sleep(time.Second * 60)
 		}
 	case "HumiditySensor":
+		acc := NewHumiditySensor(info, 5, 0, 200, 0.1)
+		config := hc.Config{Pin: ac.Pin}
+		t, err := hc.NewIPTransport(config, acc.Accessory)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		hc.OnTermination(func() {
+			t.Stop()
+		})
+		for {
+			value, found := homekitBridge.cache.Get(ac.Key)
+			if !found {
+				log.Println("bad key", ac.Key)
+				time.Sleep(time.Second * 60)
+				continue
+			}
+			temp, err := strconv.ParseFloat(value.(string), 64)
+			if err != nil {
+				log.Println("bad value", value)
+				time.Sleep(time.Second * 60)
+				continue
+			}
+			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(temp)
+			time.Sleep(time.Second * 60)
+		}
 	case "Switch":
+		log.Println("test")
 	}
 }
