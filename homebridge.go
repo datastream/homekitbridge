@@ -30,20 +30,21 @@ func ReadConfig(file string) (*HomekitBridge, error) {
 	return s, nil
 }
 
+// /api/v1/accessory?name=%sysname%&task=%tskname%&valuename=%valname%&value=%value%
 // demo.php?name=%sysname%&task=%tskname%&valuename=%valname%&value=%value%
-func (hc *HomekitBridge) AccessoryUpdate(c *gin.Context) {
+func (hb *HomekitBridge) AccessoryUpdate(c *gin.Context) {
 	c.Header("Content-Type", "application/json; charset=\"utf-8\"")
 	accessoryName := c.Param("name")
 	accessoryTask := c.Param("task")
 	accessoryValueName := c.Param("valuename")
 	accessoryValue := c.Param("value")
-	hc.cache.Set(fmt.Sprintf("%s %s %s", accessoryName, accessoryTask, accessoryValueName), accessoryValue, cache.DefaultExpiration)
+	hb.cache.Set(fmt.Sprintf("%s %s %s", accessoryName, accessoryTask, accessoryValueName), accessoryValue, cache.DefaultExpiration)
 	fmt.Print(accessoryName, accessoryTask, accessoryValueName)
 	c.JSON(http.StatusOK, gin.H{"status": "update info"})
 }
 
-func (hc *HomekitBridge) Tasks() {
-	for _, ac := range hc.AccessoryList {
+func (hb *HomekitBridge) Tasks() {
+	for _, ac := range hb.AccessoryList {
 		go ac.Task()
 	}
 }
