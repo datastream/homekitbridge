@@ -5,6 +5,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/patrickmn/go-cache"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -26,5 +29,8 @@ func main() {
 	homekitAPI := r.Group("/api/v1")
 	homekitAPI.GET("/accessory", homekitBridge.AccessoryUpdate)
 	go homekitBridge.Tasks()
-	r.Run(homekitBridge.ListenAddress)
+	go r.Run(homekitBridge.ListenAddress)
+	termchan := make(chan os.Signal, 1)
+	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
+	<-termchan
 }

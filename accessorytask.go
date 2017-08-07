@@ -57,6 +57,7 @@ func (ac *Accessorys) Task() {
 		hc.OnTermination(func() {
 			t.Stop()
 		})
+		go t.Start()
 		for {
 			value, found := homekitBridge.cache.Get(ac.Key)
 			if !found {
@@ -70,6 +71,7 @@ func (ac *Accessorys) Task() {
 				time.Sleep(time.Second * 60)
 				continue
 			}
+			log.Println("get value", value, info)
 			acc.TempSensor.CurrentTemperature.SetValue(temp)
 			time.Sleep(time.Second * 60)
 		}
@@ -84,6 +86,7 @@ func (ac *Accessorys) Task() {
 		hc.OnTermination(func() {
 			t.Stop()
 		})
+		go t.Start()
 		for {
 			value, found := homekitBridge.cache.Get(ac.Key)
 			if !found {
@@ -91,13 +94,14 @@ func (ac *Accessorys) Task() {
 				time.Sleep(time.Second * 60)
 				continue
 			}
-			temp, err := strconv.ParseFloat(value.(string), 64)
+			hum, err := strconv.ParseFloat(value.(string), 64)
 			if err != nil {
 				log.Println("bad value", value)
 				time.Sleep(time.Second * 60)
 				continue
 			}
-			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(temp)
+			log.Println("get value", value, info)
+			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(hum)
 			time.Sleep(time.Second * 60)
 		}
 	case "Switch":

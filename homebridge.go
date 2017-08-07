@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/patrickmn/go-cache"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 )
@@ -34,17 +35,18 @@ func ReadConfig(file string) (*HomekitBridge, error) {
 // demo.php?name=%sysname%&task=%tskname%&valuename=%valname%&value=%value%
 func (hb *HomekitBridge) AccessoryUpdate(c *gin.Context) {
 	c.Header("Content-Type", "application/json; charset=\"utf-8\"")
-	accessoryName := c.Param("name")
-	accessoryTask := c.Param("task")
-	accessoryValueName := c.Param("valuename")
-	accessoryValue := c.Param("value")
+	accessoryName := c.Query("name")
+	accessoryTask := c.Query("task")
+	accessoryValueName := c.Query("valuename")
+	accessoryValue := c.Query("value")
 	hb.cache.Set(fmt.Sprintf("%s %s %s", accessoryName, accessoryTask, accessoryValueName), accessoryValue, cache.DefaultExpiration)
-	fmt.Print(accessoryName, accessoryTask, accessoryValueName)
+	log.Printf("%s %s %s\n", accessoryName, accessoryTask, accessoryValueName)
 	c.JSON(http.StatusOK, gin.H{"status": "update info"})
 }
 
 func (hb *HomekitBridge) Tasks() {
-	for _, ac := range hb.AccessoryList {
+	for _, v := range hb.AccessoryList {
+		ac := v
 		go ac.Task()
 	}
 }
