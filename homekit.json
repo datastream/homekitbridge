@@ -1,0 +1,23 @@
+{
+        "ListenAddress":"0.0.0.0:8088",
+        "AccessoryList":[
+                {
+                        "key":"sanctum DHT22 Temperature",
+                        "name":"Temp",
+                        "serialNumber":"a0FAE167556F",
+                        "manufacturer":"FB",
+                        "Model":"TestVersion",
+                        "Pin":"98100659",
+                        "accessoryType":"TemperatureSensor"
+                },
+                {
+                        "key":"sanctum DHT22 Humidity",
+                        "name":"Humidity",
+                        "serialNumber":"a0FAE167556F",
+                        "manufacturer":"FB",
+                        "Model":"TestVersion",
+                        "Pin":"98100660",
+                        "accessoryType":"HumiditySensor"
+                }
+        ]
+}
