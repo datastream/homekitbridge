@@ -41,9 +41,9 @@ type AirQualitySensor struct {
 func NewAirQualitySensorService() *AirQualitySensorService {
 	svc := AirQualitySensorService{}
 	svc.Service = service.New(service.TypeAirQualitySensor)
-	svc.PM2_5Density = characteristic.NewPM2_5Density()
 	svc.AirQuality = characteristic.NewAirQuality()
 	svc.AddCharacteristic(svc.AirQuality.Characteristic)
+	svc.PM2_5Density = characteristic.NewPM2_5Density()
 	svc.AddCharacteristic(svc.PM2_5Density.Characteristic)
 	return &svc
 }
@@ -63,7 +63,7 @@ func NewHumiditySensor(info accessory.Info, cur, min, max, steps float64) *Humid
 }
 func NewAirQualitySensor(info accessory.Info, cur, min, max, steps float64) *AirQualitySensor {
 	acc := AirQualitySensor{}
-	acc.Accessory = accessory.New(info, accessory.TypeSensor)
+	acc.Accessory = accessory.New(info, accessory.TypeAirPurifier)
 	acc.AirQualitySensor = NewAirQualitySensorService()
 	acc.AirQualitySensor.AirQuality.SetValue(0)
 	acc.AirQualitySensor.AirQuality.SetMinValue(0)
@@ -102,13 +102,13 @@ func (ac *Accessorys) Task() {
 			value, found := homekitBridge.cache.Get(ac.Key)
 			if !found {
 				log.Println("bad key", ac.Key)
-				time.Sleep(time.Second * 60)
+				time.Sleep(time.Second * 10)
 				continue
 			}
 			temp, err := strconv.ParseFloat(value.(string), 64)
 			if err != nil {
 				log.Println("bad value", value)
-				time.Sleep(time.Second * 60)
+				time.Sleep(time.Second * 10)
 				continue
 			}
 			log.Println("get value", value, info)
@@ -132,13 +132,13 @@ func (ac *Accessorys) Task() {
 			value, found := homekitBridge.cache.Get(ac.Key)
 			if !found {
 				log.Println("bad key", ac.Key)
-				time.Sleep(time.Second * 60)
+				time.Sleep(time.Second * 10)
 				continue
 			}
 			hum, err := strconv.ParseFloat(value.(string), 64)
 			if err != nil {
 				log.Println("bad value", value)
-				time.Sleep(time.Second * 60)
+				time.Sleep(time.Second * 10)
 				continue
 			}
 			log.Println("get value", value, info)
@@ -162,13 +162,13 @@ func (ac *Accessorys) Task() {
 			value, found := homekitBridge.cache.Get(ac.Key)
 			if !found {
 				log.Println("bad key", ac.Key)
-				time.Sleep(time.Second * 60)
+				time.Sleep(time.Second * 10)
 				continue
 			}
 			cur, err := strconv.ParseFloat(value.(string), 64)
 			if err != nil {
 				log.Println("bad value", cur)
-				time.Sleep(time.Second * 60)
+				time.Sleep(time.Second * 10)
 				continue
 			}
 			log.Println("get value", value, info)
