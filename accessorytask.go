@@ -28,8 +28,9 @@ type HumiditySensor struct {
 
 type AirQualitySensorService struct {
 	*service.Service
-	AirQuality   *characteristic.AirQuality
-	PM2_5Density *characteristic.PM2_5Density
+	AirQuality            *characteristic.AirQuality
+	AirParticulateDensity *characteristic.AirParticulateDensity
+	AirParticulateSize    *characteristic.AirParticulateSize
 }
 
 type AirQualitySensor struct {
@@ -43,8 +44,10 @@ func NewAirQualitySensorService() *AirQualitySensorService {
 	svc.Service = service.New(service.TypeAirQualitySensor)
 	svc.AirQuality = characteristic.NewAirQuality()
 	svc.AddCharacteristic(svc.AirQuality.Characteristic)
-	svc.PM2_5Density = characteristic.NewPM2_5Density()
-	svc.AddCharacteristic(svc.PM2_5Density.Characteristic)
+	svc.AirParticulateDensity = characteristic.NewAirParticulateDensity()
+	svc.AddCharacteristic(svc.AirParticulateDensity.Characteristic)
+	svc.AirParticulateSize = characteristic.NewAirParticulateSize()
+	svc.AddCharacteristic(svc.AirParticulateSize.Characteristic)
 	return &svc
 }
 
@@ -61,19 +64,10 @@ func NewHumiditySensor(info accessory.Info, cur, min, max, steps float64) *Humid
 
 	return &acc
 }
-func NewAirQualitySensor(info accessory.Info, cur, min, max, steps float64) *AirQualitySensor {
+func NewAirQualitySensor(info accessory.Info) *AirQualitySensor {
 	acc := AirQualitySensor{}
 	acc.Accessory = accessory.New(info, accessory.TypeAirPurifier)
 	acc.AirQualitySensor = NewAirQualitySensorService()
-	acc.AirQualitySensor.AirQuality.SetValue(0)
-	acc.AirQualitySensor.AirQuality.SetMinValue(0)
-	acc.AirQualitySensor.AirQuality.SetMaxValue(5)
-	acc.AirQualitySensor.AirQuality.SetStepValue(1)
-	acc.AirQualitySensor.PM2_5Density.SetValue(cur)
-	acc.AirQualitySensor.PM2_5Density.SetMinValue(min)
-	acc.AirQualitySensor.PM2_5Density.SetMaxValue(max)
-	acc.AirQualitySensor.PM2_5Density.SetStepValue(steps)
-
 	acc.AddService(acc.AirQualitySensor.Service)
 	return &acc
 }
@@ -146,7 +140,7 @@ func (ac *Accessorys) Task() {
 			time.Sleep(time.Second * 10)
 		}
 	case "AirQualitySensor":
-		acc := NewAirQualitySensor(info, 0, 0, 2000, 1)
+		acc := NewAirQualitySensor(info)
 		config := hc.Config{Pin: ac.Pin}
 		t, err := hc.NewIPTransport(config, acc.Accessory)
 		if err != nil {
@@ -172,20 +166,20 @@ func (ac *Accessorys) Task() {
 				continue
 			}
 			log.Println("get value", value, info)
-			acc.AirQualitySensor.PM2_5Density.SetValue(cur)
-			if cur < 30 {
+			acc.AirQualitySensor.AirParticulateDensity.SetValue(cur)
+			if cur < 50 {
 				acc.AirQualitySensor.AirQuality.SetValue(1)
 			}
-			if cur > 30 && cur < 60 {
+			if cur > 50 && cur < 100 {
 				acc.AirQualitySensor.AirQuality.SetValue(2)
 			}
-			if cur > 60 && cur < 180 {
+			if cur > 100 && cur < 150 {
 				acc.AirQualitySensor.AirQuality.SetValue(3)
 			}
-			if cur > 180 && cur < 280 {
+			if cur > 150 && cur < 200 {
 				acc.AirQualitySensor.AirQuality.SetValue(4)
 			}
-			if cur > 280 {
+			if cur > 200 {
 				acc.AirQualitySensor.AirQuality.SetValue(5)
 			}
 			time.Sleep(time.Second * 10)
