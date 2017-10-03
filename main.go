@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"github.com/gin-gonic/gin"
 	"github.com/patrickmn/go-cache"
+	"github.com/surgemq/surgemq/service"
 	"log"
 	"os"
 	"os/signal"
@@ -25,11 +25,16 @@ func main() {
 		log.Fatal(err)
 	}
 	homekitBridge.cache = cache.New(5*time.Minute, 10*time.Minute)
-	r := gin.Default()
-	homekitAPI := r.Group("/api/v1")
-	homekitAPI.GET("/accessory", homekitBridge.AccessoryUpdate)
+	// Create a new server
+	svr := &service.Server{
+		KeepAlive:        600,           // seconds
+		ConnectTimeout:   5,             // seconds
+		SessionsProvider: "mem",         // keeps sessions in memory
+		Authenticator:    "mockSuccess", // always succeed
+		TopicsProvider:   "mem",         // keeps topic subscriptions in memory
+	}
+	go svr.ListenAndServe(homekitBridge.ListenAddress)
 	go homekitBridge.Tasks()
-	go r.Run(homekitBridge.ListenAddress)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan

@@ -1,16 +1,23 @@
 package main
 
 import (
+	"fmt"
 	"github.com/brutella/hc"
 	"github.com/brutella/hc/accessory"
 	"github.com/brutella/hc/characteristic"
 	"github.com/brutella/hc/service"
+	"github.com/patrickmn/go-cache"
+	"github.com/surgemq/message"
+	mqtt "github.com/surgemq/surgemq/service"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Accessorys struct {
+	hb            *HomekitBridge
+	client        *mqtt.Client
 	Key           string `json:"key"`
 	Name          string `json:"name"`
 	SerialNumber  string `json:"serialNumber"`
@@ -78,6 +85,7 @@ func (ac *Accessorys) Task() {
 		Manufacturer: ac.Manufacturer,
 		Model:        ac.Model,
 	}
+	go ac.ReadMQTT()
 	switch ac.AccessoryType {
 	case "TemperatureSensor":
 		acc := accessory.NewTemperatureSensor(info, 5, -100, 50, 0.1)
@@ -187,4 +195,39 @@ func (ac *Accessorys) Task() {
 	case "Switch":
 		log.Println("test")
 	}
+}
+
+func (ac *Accessorys) ReadMQTT() error {
+	items := strings.Split(ac.Key, " ")
+	ac.client = &mqtt.Client{}
+	msg := message.NewConnectMessage()
+	msg.SetWillQos(1)
+	msg.SetVersion(4)
+	msg.SetCleanSession(true)
+	err := msg.SetClientId([]byte(fmt.Sprintf("homebirdge%s", ac.Name)))
+	if err != nil {
+		return err
+	}
+	msg.SetKeepAlive(600)
+	msg.SetWillTopic([]byte("will"))
+	msg.SetWillMessage([]byte("send me home"))
+	msg.SetUsername([]byte(ac.hb.UserName))
+	msg.SetPassword([]byte(ac.hb.Password))
+	ac.client.Connect(ac.hb.ListenAddress, msg)
+	submsg := message.NewSubscribeMessage()
+	submsg.AddTopic([]byte(fmt.Sprintf("/%s/#", items[0])), 0)
+	return ac.client.Subscribe(submsg, nil, ac.AccessoryUpdate)
+}
+
+// openHAB MQTT
+// /%sysname%/%tskname%/%valname%
+func (ac *Accessorys) AccessoryUpdate(msg *message.PublishMessage) error {
+	payload := msg.Payload()
+	topic := msg.Topic()
+	if string(payload) == "Connected" {
+		return nil
+	}
+	accessoryValue := fmt.Sprintf("%s", string(payload))
+	ac.hb.cache.Set(string(topic), accessoryValue, cache.DefaultExpiration)
+	return nil
 }
