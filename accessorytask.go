@@ -198,7 +198,7 @@ func (ac *Accessorys) Task() {
 }
 
 func (ac *Accessorys) ReadMQTT() error {
-	items := strings.Split(ac.Key, " ")
+	items := strings.Split(ac.Key, "/")
 	ac.client = &mqtt.Client{}
 	msg := message.NewConnectMessage()
 	msg.SetWillQos(1)
@@ -215,7 +215,7 @@ func (ac *Accessorys) ReadMQTT() error {
 	msg.SetPassword([]byte(ac.hb.Password))
 	ac.client.Connect(ac.hb.ListenAddress, msg)
 	submsg := message.NewSubscribeMessage()
-	submsg.AddTopic([]byte(fmt.Sprintf("/%s/#", items[0])), 0)
+	submsg.AddTopic([]byte(fmt.Sprintf("/%s/#", items[1])), 0)
 	return ac.client.Subscribe(submsg, nil, ac.AccessoryUpdate)
 }
 
