@@ -7,10 +7,9 @@ import (
 )
 
 type HomekitBridge struct {
-	ListenAddress string `json:"ListenAddress"`
-	UserName      string `json:"UserName"`
-	Password      string `json:"Password"`
-	Topic         string
+	ListenAddress string       `json:"ListenAddress"`
+	UserName      string       `json:"UserName"`
+	Password      string       `json:"Password"`
 	AccessoryList []Accessorys `json:"AccessoryList"`
 }
 
