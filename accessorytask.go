@@ -6,18 +6,15 @@ import (
 	"github.com/brutella/hc/accessory"
 	"github.com/brutella/hc/characteristic"
 	"github.com/brutella/hc/service"
-	"github.com/patrickmn/go-cache"
-	"github.com/surgemq/message"
-	mqtt "github.com/surgemq/surgemq/service"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"log"
 	"strconv"
-	"strings"
-	"time"
 )
 
 type Accessorys struct {
 	hb            *HomekitBridge
-	client        *mqtt.Client
+	client        mqtt.Client
+	dataChannel   chan float64
 	Key           string `json:"key"`
 	Name          string `json:"name"`
 	SerialNumber  string `json:"serialNumber"`
@@ -100,22 +97,9 @@ func (ac *Accessorys) Task() {
 			t.Stop()
 		})
 		go t.Start()
-		for {
-			value, found := homekitBridge.cache.Get(ac.Key)
-			if !found {
-				log.Println("bad key", ac.Key)
-				time.Sleep(time.Second * 10)
-				continue
-			}
-			temp, err := strconv.ParseFloat(value.(string), 64)
-			if err != nil {
-				log.Println("bad value", value)
-				time.Sleep(time.Second * 10)
-				continue
-			}
-			log.Println("get value", value, info)
-			acc.TempSensor.CurrentTemperature.SetValue(temp)
-			time.Sleep(time.Second * 10)
+		for value := range ac.dataChannel {
+			log.Println(ac.Key, value)
+			acc.TempSensor.CurrentTemperature.SetValue(value)
 		}
 	case "HumiditySensor":
 		acc := NewHumiditySensor(info, 5, 0, 200, 0.1)
@@ -130,22 +114,9 @@ func (ac *Accessorys) Task() {
 			t.Stop()
 		})
 		go t.Start()
-		for {
-			value, found := homekitBridge.cache.Get(ac.Key)
-			if !found {
-				log.Println("bad key", ac.Key)
-				time.Sleep(time.Second * 10)
-				continue
-			}
-			hum, err := strconv.ParseFloat(value.(string), 64)
-			if err != nil {
-				log.Println("bad value", value)
-				time.Sleep(time.Second * 10)
-				continue
-			}
-			log.Println("get value", value, info)
-			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(hum)
-			time.Sleep(time.Second * 10)
+		for value := range ac.dataChannel {
+			log.Println(ac.Key, value)
+			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(value)
 		}
 	case "AirQualitySensor":
 		acc := NewAirQualitySensor(info)
@@ -160,37 +131,24 @@ func (ac *Accessorys) Task() {
 			t.Stop()
 		})
 		go t.Start()
-		for {
-			value, found := homekitBridge.cache.Get(ac.Key)
-			if !found {
-				log.Println("bad key", ac.Key)
-				time.Sleep(time.Second * 10)
-				continue
-			}
-			cur, err := strconv.ParseFloat(value.(string), 64)
-			if err != nil {
-				log.Println("bad value", cur)
-				time.Sleep(time.Second * 10)
-				continue
-			}
-			log.Println("get value", value, info)
-			acc.AirQualitySensor.AirParticulateDensity.SetValue(cur)
-			if cur < 50 {
+		for value := range ac.dataChannel {
+			log.Println(ac.Key, value)
+			acc.AirQualitySensor.AirParticulateDensity.SetValue(value)
+			if value <= 50 {
 				acc.AirQualitySensor.AirQuality.SetValue(1)
 			}
-			if cur > 50 && cur < 100 {
+			if value > 50 && value <= 100 {
 				acc.AirQualitySensor.AirQuality.SetValue(2)
 			}
-			if cur > 100 && cur < 150 {
+			if value > 100 && value <= 150 {
 				acc.AirQualitySensor.AirQuality.SetValue(3)
 			}
-			if cur > 150 && cur < 200 {
+			if value > 150 && value <= 200 {
 				acc.AirQualitySensor.AirQuality.SetValue(4)
 			}
-			if cur > 200 {
+			if value > 200 {
 				acc.AirQualitySensor.AirQuality.SetValue(5)
 			}
-			time.Sleep(time.Second * 10)
 		}
 	case "Switch":
 		log.Println("test")
@@ -198,36 +156,36 @@ func (ac *Accessorys) Task() {
 }
 
 func (ac *Accessorys) ReadMQTT() error {
-	items := strings.Split(ac.Key, "/")
-	ac.client = &mqtt.Client{}
-	msg := message.NewConnectMessage()
-	msg.SetWillQos(1)
-	msg.SetVersion(4)
-	msg.SetCleanSession(true)
-	err := msg.SetClientId([]byte(fmt.Sprintf("homebirdge%s", ac.Name)))
-	if err != nil {
-		return err
+	opts := mqtt.NewClientOptions()
+	opts.AddBroker(ac.hb.ListenAddress)
+	opts.SetClientID(fmt.Sprintf("homebirdge%s", ac.Name))
+	opts.SetUsername(ac.hb.UserName)
+	opts.SetPassword(ac.hb.Password)
+	opts.SetCleanSession(true)
+	opts.SetDefaultPublishHandler(ac.AccessoryUpdate)
+	ac.client = mqtt.NewClient(opts)
+	if token := ac.client.Connect(); token.Wait() && token.Error() != nil {
+		return token.Error()
 	}
-	msg.SetKeepAlive(600)
-	msg.SetWillTopic([]byte("will"))
-	msg.SetWillMessage([]byte("send me home"))
-	msg.SetUsername([]byte(ac.hb.UserName))
-	msg.SetPassword([]byte(ac.hb.Password))
-	ac.client.Connect(ac.hb.ListenAddress, msg)
-	submsg := message.NewSubscribeMessage()
-	submsg.AddTopic([]byte(fmt.Sprintf("/%s/#", items[1])), 0)
-	return ac.client.Subscribe(submsg, nil, ac.AccessoryUpdate)
+	if token := ac.client.Subscribe(ac.Key, byte(0), nil); token.Wait() && token.Error() != nil {
+		return token.Error()
+	}
+	fmt.Println("finish readmqtt")
+	return nil
 }
 
 // openHAB MQTT
 // /%sysname%/%tskname%/%valname%
-func (ac *Accessorys) AccessoryUpdate(msg *message.PublishMessage) error {
+func (ac *Accessorys) AccessoryUpdate(client mqtt.Client, msg mqtt.Message) {
 	payload := msg.Payload()
 	topic := msg.Topic()
 	if string(payload) == "Connected" {
-		return nil
+		return
 	}
-	accessoryValue := fmt.Sprintf("%s", string(payload))
-	ac.hb.cache.Set(string(topic), accessoryValue, cache.DefaultExpiration)
-	return nil
+	value, err := strconv.ParseFloat(string(payload), 64)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	ac.dataChannel <- value
 }
