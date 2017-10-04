@@ -15,7 +15,7 @@ type Accessorys struct {
 	hb            *HomekitBridge
 	client        mqtt.Client
 	dataChannel   chan float64
-	Key           string `json:"key"`
+	Topic         string `json:"topic"`
 	Name          string `json:"name"`
 	SerialNumber  string `json:"serialNumber"`
 	Manufacturer  string `json:"manufacturer"`
@@ -98,7 +98,7 @@ func (ac *Accessorys) Task() {
 		})
 		go t.Start()
 		for value := range ac.dataChannel {
-			log.Println(ac.Key, value)
+			log.Println(ac.Topic, value)
 			acc.TempSensor.CurrentTemperature.SetValue(value)
 		}
 	case "HumiditySensor":
@@ -115,7 +115,7 @@ func (ac *Accessorys) Task() {
 		})
 		go t.Start()
 		for value := range ac.dataChannel {
-			log.Println(ac.Key, value)
+			log.Println(ac.Topic, value)
 			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(value)
 		}
 	case "AirQualitySensor":
@@ -132,7 +132,7 @@ func (ac *Accessorys) Task() {
 		})
 		go t.Start()
 		for value := range ac.dataChannel {
-			log.Println(ac.Key, value)
+			log.Println(ac.Topic, value)
 			acc.AirQualitySensor.AirParticulateDensity.SetValue(value)
 			if value <= 50 {
 				acc.AirQualitySensor.AirQuality.SetValue(1)
@@ -167,7 +167,7 @@ func (ac *Accessorys) ReadMQTT() error {
 	if token := ac.client.Connect(); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
-	if token := ac.client.Subscribe(ac.Key, byte(0), nil); token.Wait() && token.Error() != nil {
+	if token := ac.client.Subscribe(ac.Topic, byte(0), nil); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
 	fmt.Println("finish readmqtt")
@@ -178,7 +178,6 @@ func (ac *Accessorys) ReadMQTT() error {
 // /%sysname%/%tskname%/%valname%
 func (ac *Accessorys) AccessoryUpdate(client mqtt.Client, msg mqtt.Message) {
 	payload := msg.Payload()
-	topic := msg.Topic()
 	if string(payload) == "Connected" {
 		return
 	}
