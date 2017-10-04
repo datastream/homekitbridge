@@ -55,14 +55,10 @@ func NewAirQualitySensorService() *AirQualitySensorService {
 	return &svc
 }
 
-func NewHumiditySensor(info accessory.Info, cur, min, max, steps float64) *HumiditySensor {
+func NewHumiditySensor(info accessory.Info) *HumiditySensor {
 	acc := HumiditySensor{}
 	acc.Accessory = accessory.New(info, accessory.TypeHumidifer)
 	acc.HumiditySensor = service.NewHumiditySensor()
-	acc.HumiditySensor.CurrentRelativeHumidity.SetValue(cur)
-	acc.HumiditySensor.CurrentRelativeHumidity.SetMinValue(min)
-	acc.HumiditySensor.CurrentRelativeHumidity.SetMaxValue(max)
-	acc.HumiditySensor.CurrentRelativeHumidity.SetStepValue(steps)
 
 	acc.AddService(acc.HumiditySensor.Service)
 
@@ -102,7 +98,7 @@ func (ac *Accessorys) Task() {
 			acc.TempSensor.CurrentTemperature.SetValue(value)
 		}
 	case "HumiditySensor":
-		acc := NewHumiditySensor(info, 5, 0, 200, 0.1)
+		acc := NewHumiditySensor(info)
 		config := hc.Config{Pin: ac.Pin}
 		t, err := hc.NewIPTransport(config, acc.Accessory)
 		if err != nil {
