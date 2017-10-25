@@ -159,12 +159,10 @@ func (ac *Accessorys) ReadMQTT() error {
 	opts.SetPassword(ac.hb.Password)
 	opts.SetCleanSession(true)
 	opts.SetDefaultPublishHandler(ac.AccessoryUpdate)
+	opts.SetOnConnectHandler(ac.onConnect)
 	opts.SetConnectionLostHandler(ac.onLost)
 	ac.client = mqtt.NewClient(opts)
 	if token := ac.client.Connect(); token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
-	if token := ac.client.Subscribe(ac.Topic, byte(0), nil); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
 	fmt.Println("finish readmqtt")
@@ -187,7 +185,10 @@ func (ac *Accessorys) AccessoryUpdate(client mqtt.Client, msg mqtt.Message) {
 }
 
 func (ac *Accessorys) onLost(client mqtt.Client, err error) {
-	fmt.Println(err)
+	fmt.Println(err, ac.Topic)
+}
+
+func (ac *Accessorys) onConnect(client mqtt.Client) {
 	if token := ac.client.Subscribe(ac.Topic, byte(0), nil); token.Wait() && token.Error() != nil {
 		fmt.Println(token.Error())
 	}
