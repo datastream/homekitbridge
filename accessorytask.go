@@ -24,10 +24,52 @@ type Accessorys struct {
 	AccessoryType string `json:"accessoryType"`
 }
 
+type CarbonDioxideSensorService struct {
+	*service.Service
+	CarbonDioxideDetected  *characteristic.CarbonDioxideDetected
+	CarbonDioxideLevel     *characteristic.CarbonDioxideLevel
+	CarbonDioxidePeakLevel *characteristic.CarbonDioxidePeakLevel
+}
+
+func NewCarbonDioxideSensorService() *CarbonDioxideSensorService {
+	svc := CarbonDioxideSensorService{}
+	svc.Service = service.New(service.TypeCarbonDioxideSensor)
+	svc.CarbonDioxideDetected = characteristic.NewCarbonDioxideDetected()
+	svc.AddCharacteristic(svc.CarbonDioxideDetected.Characteristic)
+	svc.CarbonDioxideLevel = characteristic.NewCarbonDioxideLevel()
+	svc.AddCharacteristic(svc.CarbonDioxideLevel.Characteristic)
+	svc.CarbonDioxidePeakLevel = characteristic.NewCarbonDioxidePeakLevel()
+	svc.AddCharacteristic(svc.CarbonDioxidePeakLevel.Characteristic)
+	return &svc
+}
+
+type CarbonDioxideSensor struct {
+	*accessory.Accessory
+	CarbonDioxideSensor *CarbonDioxideSensorService
+}
+
+func NewCarbonDioxideSensor(info accessory.Info) *CarbonDioxideSensor {
+	acc := CarbonDioxideSensor{}
+	acc.Accessory = accessory.New(info, accessory.TypeAirPurifier)
+	acc.CarbonDioxideSensor = NewCarbonDioxideSensorService()
+	acc.AddService(acc.CarbonDioxideSensor.Service)
+	return &acc
+}
+
 type HumiditySensor struct {
 	*accessory.Accessory
 
 	HumiditySensor *service.HumiditySensor
+}
+
+func NewHumiditySensor(info accessory.Info) *HumiditySensor {
+	acc := HumiditySensor{}
+	acc.Accessory = accessory.New(info, accessory.TypeHumidifer)
+	acc.HumiditySensor = service.NewHumiditySensor()
+
+	acc.AddService(acc.HumiditySensor.Service)
+
+	return &acc
 }
 
 type AirQualitySensorService struct {
@@ -35,12 +77,6 @@ type AirQualitySensorService struct {
 	AirQuality            *characteristic.AirQuality
 	AirParticulateDensity *characteristic.AirParticulateDensity
 	AirParticulateSize    *characteristic.AirParticulateSize
-}
-
-type AirQualitySensor struct {
-	*accessory.Accessory
-
-	AirQualitySensor *AirQualitySensorService
 }
 
 func NewAirQualitySensorService() *AirQualitySensorService {
@@ -55,15 +91,12 @@ func NewAirQualitySensorService() *AirQualitySensorService {
 	return &svc
 }
 
-func NewHumiditySensor(info accessory.Info) *HumiditySensor {
-	acc := HumiditySensor{}
-	acc.Accessory = accessory.New(info, accessory.TypeHumidifer)
-	acc.HumiditySensor = service.NewHumiditySensor()
+type AirQualitySensor struct {
+	*accessory.Accessory
 
-	acc.AddService(acc.HumiditySensor.Service)
-
-	return &acc
+	AirQualitySensor *AirQualitySensorService
 }
+
 func NewAirQualitySensor(info accessory.Info) *AirQualitySensor {
 	acc := AirQualitySensor{}
 	acc.Accessory = accessory.New(info, accessory.TypeAirPurifier)
@@ -144,6 +177,29 @@ func (ac *Accessorys) Task() {
 			}
 			if value > 200 {
 				acc.AirQualitySensor.AirQuality.SetValue(5)
+			}
+		}
+	case "CarbonDioxideSensor":
+		acc := NewCarbonDioxideSensor(info)
+		config := hc.Config{Pin: ac.Pin}
+		t, err := hc.NewIPTransport(config, acc.Accessory)
+		if err != nil {
+			log.Println(acc)
+			log.Panic(err)
+		}
+
+		hc.OnTermination(func() {
+			t.Stop()
+		})
+		go t.Start()
+		for value := range ac.dataChannel {
+			log.Println(ac.Topic, value)
+			acc.CarbonDioxideSensor.CarbonDioxideLevel.SetValue(value)
+			if acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.GetValue() < value {
+				acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.SetValue(value)
+			}
+			if value > 1000 {
+				acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(1)
 			}
 		}
 	case "Switch":
