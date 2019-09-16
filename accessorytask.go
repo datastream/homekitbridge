@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"strconv"
+
 	"github.com/brutella/hc"
 	"github.com/brutella/hc/accessory"
 	"github.com/brutella/hc/characteristic"
 	"github.com/brutella/hc/service"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"log"
-	"strconv"
 )
 
 type Accessorys struct {
@@ -64,7 +65,7 @@ type HumiditySensor struct {
 
 func NewHumiditySensor(info accessory.Info) *HumiditySensor {
 	acc := HumiditySensor{}
-	acc.Accessory = accessory.New(info, accessory.TypeHumidifer)
+	acc.Accessory = accessory.New(info, accessory.TypeHumidifier)
 	acc.HumiditySensor = service.NewHumiditySensor()
 
 	acc.AddService(acc.HumiditySensor.Service)
@@ -128,6 +129,7 @@ func (ac *Accessorys) Task() {
 		go t.Start()
 		for value := range ac.dataChannel {
 			log.Println(ac.Topic, value)
+			acc.hb.metricstatus.WithLabelValues(ac.Topic, "TemperatureSensor").Set(float64(value))
 			acc.TempSensor.CurrentTemperature.SetValue(value)
 		}
 	case "HumiditySensor":
@@ -145,6 +147,7 @@ func (ac *Accessorys) Task() {
 		go t.Start()
 		for value := range ac.dataChannel {
 			log.Println(ac.Topic, value)
+			acc.hb.metricstatus.WithLabelValues(ac.Topic, "HumiditySensor").Set(float64(value))
 			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(value)
 		}
 	case "AirQualitySensor":
@@ -162,6 +165,7 @@ func (ac *Accessorys) Task() {
 		go t.Start()
 		for value := range ac.dataChannel {
 			log.Println(ac.Topic, value)
+			acc.hb.metricstatus.WithLabelValues(ac.Topic, "AirQualitySensor").Set(float64(value))
 			acc.AirQualitySensor.AirParticulateDensity.SetValue(value)
 			if value <= 50 {
 				acc.AirQualitySensor.AirQuality.SetValue(1)
@@ -194,12 +198,15 @@ func (ac *Accessorys) Task() {
 		go t.Start()
 		for value := range ac.dataChannel {
 			log.Println(ac.Topic, value)
+			acc.hb.metricstatus.WithLabelValues(ac.Topic, "CarbonDioxideSensor").Set(float64(value))
 			acc.CarbonDioxideSensor.CarbonDioxideLevel.SetValue(value)
 			if acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.GetValue() < value {
 				acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.SetValue(value)
 			}
-			if value > 1000 {
+			if value > 1200 {
 				acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(1)
+			} else {
+				acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(0)
 			}
 		}
 	case "Switch":

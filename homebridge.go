@@ -4,13 +4,17 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type HomekitBridge struct {
-	ListenAddress string       `json:"ListenAddress"`
-	UserName      string       `json:"UserName"`
-	Password      string       `json:"Password"`
-	AccessoryList []Accessorys `json:"AccessoryList"`
+	ListenAddress       string       `json:"ListenAddress"`
+	UserName            string       `json:"UserName"`
+	Password            string       `json:"Password"`
+	AccessoryList       []Accessorys `json:"AccessoryList"`
+	MetricListenAddress string       `json:"MetricListenAddress"`
+	metricstatus        *prometheus.GaugeVec
 }
 
 func ReadConfig(file string) (*HomekitBridge, error) {
@@ -24,6 +28,20 @@ func ReadConfig(file string) (*HomekitBridge, error) {
 	if err := json.Unmarshal(config, &s); err != nil {
 		return nil, err
 	}
+	if len(s.MetricListenAddress) == 0 {
+		s.MetricListenAddress = "0.0.0.0:7080"
+	}
+	s.metricstatus = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "smarthome",
+			Subsystem: "homekit",
+			Name:      "bridge",
+			Help:      "homekit bridge status.",
+		},
+		[]string{"topic", "sensor"},
+	)
+	// Register status
+	prometheus.Register(s.metricstatus)
 	return s, nil
 }
 
