@@ -129,7 +129,7 @@ func (ac *Accessorys) Task() {
 		go t.Start()
 		for value := range ac.dataChannel {
 			log.Println(ac.Topic, value)
-			ac.hb.metricstatus.WithLabelValues(ac.Topic, "TemperatureSensor").Set(float64(value))
+			ac.hb.metricstatus.WithLabelValues(ac.SerialNumber, "TemperatureSensor").Set(float64(value))
 			acc.TempSensor.CurrentTemperature.SetValue(value)
 		}
 	case "HumiditySensor":
@@ -147,7 +147,7 @@ func (ac *Accessorys) Task() {
 		go t.Start()
 		for value := range ac.dataChannel {
 			log.Println(ac.Topic, value)
-			ac.hb.metricstatus.WithLabelValues(ac.Topic, "HumiditySensor").Set(float64(value))
+			ac.hb.metricstatus.WithLabelValues(ac.SerialNumber, "HumiditySensor").Set(float64(value))
 			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(value)
 		}
 	case "AirQualitySensor":
@@ -165,7 +165,7 @@ func (ac *Accessorys) Task() {
 		go t.Start()
 		for value := range ac.dataChannel {
 			log.Println(ac.Topic, value)
-			ac.hb.metricstatus.WithLabelValues(ac.Topic, "AirQualitySensor").Set(float64(value))
+			ac.hb.metricstatus.WithLabelValues(ac.SerialNumber, "AirQualitySensor").Set(float64(value))
 			acc.AirQualitySensor.AirParticulateDensity.SetValue(value)
 			if value <= 50 {
 				acc.AirQualitySensor.AirQuality.SetValue(1)
@@ -198,7 +198,7 @@ func (ac *Accessorys) Task() {
 		go t.Start()
 		for value := range ac.dataChannel {
 			log.Println(ac.Topic, value)
-			ac.hb.metricstatus.WithLabelValues(ac.Topic, "CarbonDioxideSensor").Set(float64(value))
+			ac.hb.metricstatus.WithLabelValues(ac.SerialNumber, "CarbonDioxideSensor").Set(float64(value))
 			acc.CarbonDioxideSensor.CarbonDioxideLevel.SetValue(value)
 			if acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.GetValue() < value {
 				acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.SetValue(value)

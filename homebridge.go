@@ -38,7 +38,7 @@ func ReadConfig(file string) (*HomekitBridge, error) {
 			Name:      "bridge",
 			Help:      "homekit bridge status.",
 		},
-		[]string{"topic", "sensor"},
+		[]string{"serialnumber", "sensor"},
 	)
 	// Register status
 	prometheus.Register(s.metricstatus)
