@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -21,7 +20,6 @@ var homekitBridge *HomekitBridge
 func main() {
 	flag.Parse()
 	var err error
-	prometheus.MustRegister(prometheus.NewBuildInfoCollector())
 	homekitBridge, err = ReadConfig(*confFile)
 	if err != nil {
 		log.Fatal(err)

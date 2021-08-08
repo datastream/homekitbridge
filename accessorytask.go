@@ -1,28 +1,33 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/brutella/hc"
 	"github.com/brutella/hc/accessory"
 	"github.com/brutella/hc/characteristic"
 	"github.com/brutella/hc/service"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/prometheus/client_golang/api"
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
 
 type Accessorys struct {
-	hb            *HomekitBridge
-	client        mqtt.Client
-	dataChannel   chan float64
-	Topic         string `json:"topic"`
-	Name          string `json:"name"`
-	SerialNumber  string `json:"serialNumber"`
-	Manufacturer  string `json:"manufacturer"`
-	Model         string `json:"model"`
-	Pin           string `json:"pin"`
-	AccessoryType string `json:"accessoryType"`
+	hb             *HomekitBridge
+	dataChannel    chan float64
+	exitChan       chan int
+	MetricEndpoint string `json:"metricEndpoint"`
+	Metric         string `json:"metric"`
+	Name           string `json:"name"`
+	SerialNumber   string `json:"serialNumber"`
+	Manufacturer   string `json:"manufacturer"`
+	Model          string `json:"model"`
+	Pin            string `json:"pin"`
+	AccessoryType  string `json:"accessoryType"`
 }
 
 type CarbonDioxideSensorService struct {
@@ -112,7 +117,7 @@ func (ac *Accessorys) Task() {
 		Manufacturer: ac.Manufacturer,
 		Model:        ac.Model,
 	}
-	go ac.ReadMQTT()
+	go ac.AccessoryUpdate()
 	switch ac.AccessoryType {
 	case "TemperatureSensor":
 		acc := accessory.NewTemperatureSensor(info, 5, -100, 50, 0.1)
@@ -128,8 +133,7 @@ func (ac *Accessorys) Task() {
 		})
 		go t.Start()
 		for value := range ac.dataChannel {
-			log.Println(ac.Topic, value)
-			ac.hb.metricstatus.WithLabelValues(ac.SerialNumber, "TemperatureSensor").Set(float64(value))
+			log.Println(ac.Metric, value)
 			acc.TempSensor.CurrentTemperature.SetValue(value)
 		}
 	case "HumiditySensor":
@@ -146,8 +150,7 @@ func (ac *Accessorys) Task() {
 		})
 		go t.Start()
 		for value := range ac.dataChannel {
-			log.Println(ac.Topic, value)
-			ac.hb.metricstatus.WithLabelValues(ac.SerialNumber, "HumiditySensor").Set(float64(value))
+			log.Println(ac.Metric, value)
 			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(value)
 		}
 	case "AirQualitySensor":
@@ -164,8 +167,7 @@ func (ac *Accessorys) Task() {
 		})
 		go t.Start()
 		for value := range ac.dataChannel {
-			log.Println(ac.Topic, value)
-			ac.hb.metricstatus.WithLabelValues(ac.SerialNumber, "AirQualitySensor").Set(float64(value))
+			log.Println(ac.Metric, value)
 			acc.AirQualitySensor.AirParticulateDensity.SetValue(value)
 			if value <= 50 {
 				acc.AirQualitySensor.AirQuality.SetValue(1)
@@ -197,8 +199,7 @@ func (ac *Accessorys) Task() {
 		})
 		go t.Start()
 		for value := range ac.dataChannel {
-			log.Println(ac.Topic, value)
-			ac.hb.metricstatus.WithLabelValues(ac.SerialNumber, "CarbonDioxideSensor").Set(float64(value))
+			log.Println(ac.Metric, value)
 			acc.CarbonDioxideSensor.CarbonDioxideLevel.SetValue(value)
 			if acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.GetValue() < value {
 				acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.SetValue(value)
@@ -214,45 +215,53 @@ func (ac *Accessorys) Task() {
 	}
 }
 
-func (ac *Accessorys) ReadMQTT() error {
-	opts := mqtt.NewClientOptions()
-	opts.AddBroker(ac.hb.ListenAddress)
-	opts.SetClientID(fmt.Sprintf("homebirdge%s", ac.Name))
-	opts.SetUsername(ac.hb.UserName)
-	opts.SetPassword(ac.hb.Password)
-	opts.SetCleanSession(true)
-	opts.SetDefaultPublishHandler(ac.AccessoryUpdate)
-	opts.SetOnConnectHandler(ac.onConnect)
-	opts.SetConnectionLostHandler(ac.onLost)
-	ac.client = mqtt.NewClient(opts)
-	if token := ac.client.Connect(); token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
-	fmt.Println("finish readmqtt")
-	return nil
-}
-
-// openHAB MQTT
-// /%sysname%/%tskname%/%valname%
-func (ac *Accessorys) AccessoryUpdate(client mqtt.Client, msg mqtt.Message) {
-	payload := msg.Payload()
-	if string(payload) == "Connected" {
-		return
-	}
-	value, err := strconv.ParseFloat(string(payload), 64)
+func (ac *Accessorys) AccessoryUpdate() {
+	client, err := api.NewClient(api.Config{
+		Address: ac.MetricEndpoint,
+	})
 	if err != nil {
-		fmt.Println(err)
-		return
+		log.Fatal(err.Error())
 	}
-	ac.dataChannel <- value
-}
-
-func (ac *Accessorys) onLost(client mqtt.Client, err error) {
-	fmt.Println(err, ac.Topic)
-}
-
-func (ac *Accessorys) onConnect(client mqtt.Client) {
-	if token := ac.client.Subscribe(ac.Topic, byte(0), nil); token.Wait() && token.Error() != nil {
-		fmt.Println(token.Error())
+	v1api := v1.NewAPI(client)
+	ticker := time.Tick(time.Minute)
+	for {
+		select {
+		case <-ticker:
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			current := time.Now()
+			r := v1.Range{
+				Start: current.Add(-time.Minute * 2),
+				End:   current,
+				Step:  time.Minute,
+			}
+			result, warnings, err := v1api.QueryRange(ctx, ac.Metric, r)
+			cancel()
+			if err != nil {
+				fmt.Printf("Error querying Prometheus: %v\n", err)
+			}
+			if len(warnings) > 0 {
+				fmt.Printf("Warnings: %v\n", warnings)
+			}
+			log.Println(result.String())
+			items := strings.Split(result.String(), "\n")
+			l := len(items)
+			var value float64
+			if l > 2 {
+				data := items[l-1]
+				values := strings.Split(data, " ")
+				log.Println(data, values)
+				if len(values) < 2 {
+					break
+				}
+				value, err = strconv.ParseFloat(values[0], 64)
+				if err != nil {
+					log.Println("convert to float64", err)
+					break
+				}
+			}
+			log.Println(value)
+			ac.dataChannel <- value
+		case <-ac.exitChan:
+		}
 	}
 }

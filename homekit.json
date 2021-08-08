@@ -4,22 +4,44 @@
         "Password":"homekit",
         "AccessoryList":[
                 {
-                        "key":"sanctum DHT22 Temperature",
+                        "metric":"bmp180_temperature",
+                        "metricEndpoint":"http://10.0.1.3:9090",
                         "name":"Temp",
                         "serialNumber":"a0FAE167556F",
-                        "manufacturer":"FB",
-                        "Model":"TestVersion",
+                        "manufacturer":"HB",
+                        "Model":"Temperature",
                         "Pin":"98100659",
                         "accessoryType":"TemperatureSensor"
                 },
                 {
-                        "key":"sanctum DHT22 Humidity",
-                        "name":"Humidity",
-                        "serialNumber":"a0FAE167556F",
-                        "manufacturer":"FB",
-                        "Model":"TestVersion",
-                        "Pin":"98100660",
+                        "metric":"dht22_temperature",
+                        "metricEndpoint":"http://10.0.1.3:9090",
+                        "name":"bedTemp",
+                        "serialNumber":"a0FAE167558F",
+                        "manufacturer":"HB",
+                        "Model":"Temperature",
+                        "Pin":"98100661",
+                        "accessoryType":"TemperatureSensor"
+                },
+                {
+                        "metric":"dht22_humidity",
+                        "metricEndpoint":"http://10.0.1.3:9090",
+                        "name":"bedHumidity",
+                        "serialNumber":"aEFAE167559F",
+                        "manufacturer":"HB",
+                        "Model":"Humidity",
+                        "Pin":"98100662",
                         "accessoryType":"HumiditySensor"
+                },
+                {
+                        "metric":"mhz19b_co2_ppm",
+                        "metricEndpoint":"http://10.0.1.3:9090",
+                        "name":"CarbonDioxideSensor",
+                        "serialNumber":"ADFGE167561D",
+                        "manufacturer":"HB",
+                        "Model":"AirQualityCO2",
+                        "Pin":"98100664",
+                        "accessoryType":"CarbonDioxideSensor"
                 }
         ]
 }
