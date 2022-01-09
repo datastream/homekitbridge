@@ -238,6 +238,7 @@ func (ac *Accessorys) AccessoryUpdate() {
 			cancel()
 			if err != nil {
 				fmt.Printf("Error querying Prometheus: %v\n", err)
+				break
 			}
 			if len(warnings) > 0 {
 				fmt.Printf("Warnings: %v\n", warnings)
