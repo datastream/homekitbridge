@@ -114,11 +114,11 @@ func (ac *Accessorys) Task(ctx context.Context) {
 	case "TemperatureSensor":
 		acc := accessory.NewTemperatureSensor(info)
 		t, err := hap.NewServer(fs, acc.A)
-		t.Pin = ac.Pin
 		if err != nil {
 			log.Println(acc)
 			log.Panic(err)
 		}
+		t.Pin = ac.Pin
 		go t.ListenAndServe(ctx)
 		for value := range ac.dataChannel {
 			log.Println(ac.Metric, value)
@@ -131,6 +131,7 @@ func (ac *Accessorys) Task(ctx context.Context) {
 			log.Println(acc)
 			log.Panic(err)
 		}
+		t.Pin = ac.Pin
 		go t.ListenAndServe(ctx)
 		for value := range ac.dataChannel {
 			log.Println(ac.Metric, value)
@@ -143,6 +144,7 @@ func (ac *Accessorys) Task(ctx context.Context) {
 			log.Println(acc)
 			log.Panic(err)
 		}
+		t.Pin = ac.Pin
 		go t.ListenAndServe(ctx)
 		for value := range ac.dataChannel {
 			log.Println(ac.Metric, value)
@@ -170,6 +172,7 @@ func (ac *Accessorys) Task(ctx context.Context) {
 			log.Println(acc)
 			log.Panic(err)
 		}
+		t.Pin = ac.Pin
 		go t.ListenAndServe(ctx)
 		for value := range ac.dataChannel {
 			log.Println(ac.Metric, value)
