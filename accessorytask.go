@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brutella/hap"
 	"github.com/brutella/hap/accessory"
 	"github.com/brutella/hap/characteristic"
 	"github.com/brutella/hap/service"
@@ -26,7 +25,6 @@ type Accessorys struct {
 	SerialNumber   string `json:"serialNumber"`
 	Manufacturer   string `json:"manufacturer"`
 	Model          string `json:"model"`
-	Pin            string `json:"pin"`
 	AccessoryType  string `json:"accessoryType"`
 }
 
@@ -101,94 +99,86 @@ func NewAirQualitySensor(info accessory.Info) *AirQualitySensor {
 	return &acc
 }
 
-func (ac *Accessorys) Task(ctx context.Context) {
+func (ac *Accessorys) Task() *accessory.A {
 	info := accessory.Info{
 		Name:         ac.Name,
 		SerialNumber: ac.SerialNumber,
 		Manufacturer: ac.Manufacturer,
 		Model:        ac.Model,
 	}
-	fs := hap.NewFsStore(fmt.Sprintf("./%s", ac.SerialNumber))
+	// fs := hap.NewFsStore(fmt.Sprintf("./%s", ac.SerialNumber))
 	go ac.AccessoryUpdate()
 	switch ac.AccessoryType {
 	case "TemperatureSensor":
 		acc := accessory.NewTemperatureSensor(info)
-		t, err := hap.NewServer(fs, acc.A)
-		if err != nil {
-			log.Println(acc)
-			log.Panic(err)
-		}
-		t.Pin = ac.Pin
-		go t.ListenAndServe(ctx)
-		for value := range ac.dataChannel {
-			log.Println(ac.Metric, value)
-			acc.TempSensor.CurrentTemperature.SetValue(value)
-		}
+		go func() {
+			for value := range ac.dataChannel {
+				log.Println(ac.Metric, value)
+				acc.TempSensor.CurrentTemperature.SetValue(value)
+			}
+		}()
+		return acc.A
 	case "HumiditySensor":
 		acc := NewHumiditySensor(info)
-		t, err := hap.NewServer(fs, acc.A)
-		if err != nil {
-			log.Println(acc)
-			log.Panic(err)
-		}
-		t.Pin = ac.Pin
-		go t.ListenAndServe(ctx)
-		for value := range ac.dataChannel {
-			log.Println(ac.Metric, value)
-			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(value)
-		}
+		go func() {
+			for value := range ac.dataChannel {
+				log.Println(ac.Metric, value)
+				acc.HumiditySensor.CurrentRelativeHumidity.SetValue(value)
+			}
+		}()
+		return acc.A
 	case "AirQualitySensor":
 		acc := NewAirQualitySensor(info)
-		t, err := hap.NewServer(fs, acc.A)
-		if err != nil {
-			log.Println(acc)
-			log.Panic(err)
-		}
-		t.Pin = ac.Pin
-		go t.ListenAndServe(ctx)
-		for value := range ac.dataChannel {
-			log.Println(ac.Metric, value)
-			acc.AirQualitySensor.AirQuality.SetValue(int(value))
-			if value <= 50 {
-				acc.AirQualitySensor.AirQuality.SetValue(1)
+		go func() {
+			for value := range ac.dataChannel {
+				log.Println(ac.Metric, value)
+				acc.AirQualitySensor.AirQuality.SetValue(int(value))
+				if value <= 50 {
+					acc.AirQualitySensor.AirQuality.SetValue(1)
+				}
+				if value > 50 && value <= 100 {
+					acc.AirQualitySensor.AirQuality.SetValue(2)
+				}
+				if value > 100 && value <= 150 {
+					acc.AirQualitySensor.AirQuality.SetValue(3)
+				}
+				if value > 150 && value <= 200 {
+					acc.AirQualitySensor.AirQuality.SetValue(4)
+				}
+				if value > 200 {
+					acc.AirQualitySensor.AirQuality.SetValue(5)
+				}
 			}
-			if value > 50 && value <= 100 {
-				acc.AirQualitySensor.AirQuality.SetValue(2)
-			}
-			if value > 100 && value <= 150 {
-				acc.AirQualitySensor.AirQuality.SetValue(3)
-			}
-			if value > 150 && value <= 200 {
-				acc.AirQualitySensor.AirQuality.SetValue(4)
-			}
-			if value > 200 {
-				acc.AirQualitySensor.AirQuality.SetValue(5)
-			}
-		}
+		}()
+		return acc.A
 	case "CarbonDioxideSensor":
 		acc := NewCarbonDioxideSensor(info)
-		t, err := hap.NewServer(fs, acc.A)
-		if err != nil {
-			log.Println(acc)
-			log.Panic(err)
-		}
-		t.Pin = ac.Pin
-		go t.ListenAndServe(ctx)
-		for value := range ac.dataChannel {
-			log.Println(ac.Metric, value)
-			acc.CarbonDioxideSensor.CarbonDioxideLevel.SetValue(value)
-			if acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.Value() < value {
-				acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.SetValue(value)
+		// t, err := hap.NewServer(fs, acc.A)
+		// if err != nil {
+		// 	log.Println(acc)
+		// 	log.Panic(err)
+		// }
+		// t.Pin = ac.Pin
+		// go t.ListenAndServe(ctx)
+		go func() {
+			for value := range ac.dataChannel {
+				log.Println(ac.Metric, value)
+				acc.CarbonDioxideSensor.CarbonDioxideLevel.SetValue(value)
+				if acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.Value() < value {
+					acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.SetValue(value)
+				}
+				if value > 1200 {
+					acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(1)
+				} else {
+					acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(0)
+				}
 			}
-			if value > 1200 {
-				acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(1)
-			} else {
-				acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(0)
-			}
-		}
+		}()
+		return acc.A
 	case "Switch":
 		log.Println("test")
 	}
+	return nil
 }
 
 func (ac *Accessorys) AccessoryUpdate() {
