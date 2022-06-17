@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -34,12 +35,12 @@ func ReadConfig(file string) (*HomekitBridge, error) {
 	return s, nil
 }
 
-func (hb *HomekitBridge) Tasks() {
+func (hb *HomekitBridge) Tasks(ctx context.Context) {
 	for _, v := range hb.AccessoryList {
 		ac := v
 		ac.hb = hb
 		ac.dataChannel = make(chan float64)
 		ac.exitChan = make(chan int)
-		go ac.Task()
+		go ac.Task(ctx)
 	}
 }

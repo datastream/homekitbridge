@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brutella/hc"
-	"github.com/brutella/hc/accessory"
-	"github.com/brutella/hc/characteristic"
-	"github.com/brutella/hc/service"
+	"github.com/brutella/hap"
+	"github.com/brutella/hap/accessory"
+	"github.com/brutella/hap/characteristic"
+	"github.com/brutella/hap/service"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
@@ -31,144 +31,122 @@ type Accessorys struct {
 }
 
 type CarbonDioxideSensorService struct {
-	*service.Service
-	CarbonDioxideDetected  *characteristic.CarbonDioxideDetected
+	*service.CarbonDioxideSensor
 	CarbonDioxideLevel     *characteristic.CarbonDioxideLevel
 	CarbonDioxidePeakLevel *characteristic.CarbonDioxidePeakLevel
 }
 
 func NewCarbonDioxideSensorService() *CarbonDioxideSensorService {
 	svc := CarbonDioxideSensorService{}
-	svc.Service = service.New(service.TypeCarbonDioxideSensor)
-	svc.CarbonDioxideDetected = characteristic.NewCarbonDioxideDetected()
-	svc.AddCharacteristic(svc.CarbonDioxideDetected.Characteristic)
+	svc.CarbonDioxideSensor = service.NewCarbonDioxideSensor()
 	svc.CarbonDioxideLevel = characteristic.NewCarbonDioxideLevel()
-	svc.AddCharacteristic(svc.CarbonDioxideLevel.Characteristic)
+	svc.AddC(svc.CarbonDioxideLevel.C)
 	svc.CarbonDioxidePeakLevel = characteristic.NewCarbonDioxidePeakLevel()
-	svc.AddCharacteristic(svc.CarbonDioxidePeakLevel.Characteristic)
+	svc.AddC(svc.CarbonDioxidePeakLevel.C)
 	return &svc
 }
 
 type CarbonDioxideSensor struct {
-	*accessory.Accessory
+	*accessory.A
 	CarbonDioxideSensor *CarbonDioxideSensorService
 }
 
 func NewCarbonDioxideSensor(info accessory.Info) *CarbonDioxideSensor {
 	acc := CarbonDioxideSensor{}
-	acc.Accessory = accessory.New(info, accessory.TypeAirPurifier)
+	acc.A = accessory.New(info, accessory.TypeAirPurifier)
 	acc.CarbonDioxideSensor = NewCarbonDioxideSensorService()
-	acc.AddService(acc.CarbonDioxideSensor.Service)
+	acc.AddS(acc.CarbonDioxideSensor.S)
 	return &acc
 }
 
 type HumiditySensor struct {
-	*accessory.Accessory
-
+	*accessory.A
 	HumiditySensor *service.HumiditySensor
 }
 
 func NewHumiditySensor(info accessory.Info) *HumiditySensor {
 	acc := HumiditySensor{}
-	acc.Accessory = accessory.New(info, accessory.TypeHumidifier)
+	acc.A = accessory.New(info, accessory.TypeHumidifier)
 	acc.HumiditySensor = service.NewHumiditySensor()
-
-	acc.AddService(acc.HumiditySensor.Service)
-
+	acc.AddS(acc.HumiditySensor.S)
 	return &acc
 }
 
 type AirQualitySensorService struct {
-	*service.Service
-	AirQuality            *characteristic.AirQuality
-	AirParticulateDensity *characteristic.AirParticulateDensity
-	AirParticulateSize    *characteristic.AirParticulateSize
+	*service.AirQualitySensor
+	AirParticulateSize *characteristic.AirParticulateSize
 }
 
 func NewAirQualitySensorService() *AirQualitySensorService {
 	svc := AirQualitySensorService{}
-	svc.Service = service.New(service.TypeAirQualitySensor)
-	svc.AirQuality = characteristic.NewAirQuality()
-	svc.AddCharacteristic(svc.AirQuality.Characteristic)
-	svc.AirParticulateDensity = characteristic.NewAirParticulateDensity()
-	svc.AddCharacteristic(svc.AirParticulateDensity.Characteristic)
+	svc.AirQualitySensor = service.NewAirQualitySensor()
+
 	svc.AirParticulateSize = characteristic.NewAirParticulateSize()
-	svc.AddCharacteristic(svc.AirParticulateSize.Characteristic)
+	svc.AddC(svc.AirParticulateSize.C)
 	return &svc
 }
 
 type AirQualitySensor struct {
-	*accessory.Accessory
-
+	*accessory.A
 	AirQualitySensor *AirQualitySensorService
 }
 
 func NewAirQualitySensor(info accessory.Info) *AirQualitySensor {
 	acc := AirQualitySensor{}
-	acc.Accessory = accessory.New(info, accessory.TypeAirPurifier)
+	acc.A = accessory.New(info, accessory.TypeAirPurifier)
 	acc.AirQualitySensor = NewAirQualitySensorService()
-	acc.AddService(acc.AirQualitySensor.Service)
+
+	acc.AddS(acc.AirQualitySensor.S)
+
 	return &acc
 }
-func (ac *Accessorys) Task() {
+
+func (ac *Accessorys) Task(ctx context.Context) {
 	info := accessory.Info{
 		Name:         ac.Name,
 		SerialNumber: ac.SerialNumber,
 		Manufacturer: ac.Manufacturer,
 		Model:        ac.Model,
 	}
+	fs := hap.NewFsStore(fmt.Sprintf("./%s", ac.SerialNumber))
 	go ac.AccessoryUpdate()
 	switch ac.AccessoryType {
 	case "TemperatureSensor":
-		acc := accessory.NewTemperatureSensor(info, 5, -100, 50, 0.1)
-		config := hc.Config{Pin: ac.Pin}
-		t, err := hc.NewIPTransport(config, acc.Accessory)
+		acc := accessory.NewTemperatureSensor(info)
+		t, err := hap.NewServer(fs, acc.A)
+		t.Pin = ac.Pin
 		if err != nil {
 			log.Println(acc)
 			log.Panic(err)
 		}
-
-		hc.OnTermination(func() {
-			t.Stop()
-		})
-		go t.Start()
+		go t.ListenAndServe(ctx)
 		for value := range ac.dataChannel {
 			log.Println(ac.Metric, value)
 			acc.TempSensor.CurrentTemperature.SetValue(value)
 		}
 	case "HumiditySensor":
 		acc := NewHumiditySensor(info)
-		config := hc.Config{Pin: ac.Pin}
-		t, err := hc.NewIPTransport(config, acc.Accessory)
+		t, err := hap.NewServer(fs, acc.A)
 		if err != nil {
 			log.Println(acc)
 			log.Panic(err)
 		}
-
-		hc.OnTermination(func() {
-			t.Stop()
-		})
-		go t.Start()
+		go t.ListenAndServe(ctx)
 		for value := range ac.dataChannel {
 			log.Println(ac.Metric, value)
 			acc.HumiditySensor.CurrentRelativeHumidity.SetValue(value)
 		}
 	case "AirQualitySensor":
 		acc := NewAirQualitySensor(info)
-		config := hc.Config{Pin: ac.Pin}
-		t, err := hc.NewIPTransport(config, acc.Accessory)
+		t, err := hap.NewServer(fs, acc.A)
 		if err != nil {
 			log.Println(acc)
 			log.Panic(err)
 		}
-
-		hc.OnTermination(func() {
-			t.Stop()
-		})
-		go t.Start()
+		go t.ListenAndServe(ctx)
 		for value := range ac.dataChannel {
 			log.Println(ac.Metric, value)
-			acc.AirQualitySensor.AirParticulateDensity.SetValue(value)
+			acc.AirQualitySensor.AirQuality.SetValue(int(value))
 			if value <= 50 {
 				acc.AirQualitySensor.AirQuality.SetValue(1)
 			}
@@ -187,21 +165,16 @@ func (ac *Accessorys) Task() {
 		}
 	case "CarbonDioxideSensor":
 		acc := NewCarbonDioxideSensor(info)
-		config := hc.Config{Pin: ac.Pin}
-		t, err := hc.NewIPTransport(config, acc.Accessory)
+		t, err := hap.NewServer(fs, acc.A)
 		if err != nil {
 			log.Println(acc)
 			log.Panic(err)
 		}
-
-		hc.OnTermination(func() {
-			t.Stop()
-		})
-		go t.Start()
+		go t.ListenAndServe(ctx)
 		for value := range ac.dataChannel {
 			log.Println(ac.Metric, value)
 			acc.CarbonDioxideSensor.CarbonDioxideLevel.SetValue(value)
-			if acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.GetValue() < value {
+			if acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.Value() < value {
 				acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.SetValue(value)
 			}
 			if value > 1200 {

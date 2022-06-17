@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
@@ -26,8 +27,10 @@ func main() {
 	}
 	http.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(homekitBridge.MetricListenAddress, nil)
-	go homekitBridge.Tasks()
+	ctx, cancel := context.WithCancel(context.Background())
+	go homekitBridge.Tasks(ctx)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
+	cancel()
 }
