@@ -132,34 +132,12 @@ func (ac *Accessorys) Task() *accessory.A {
 		go func() {
 			for value := range ac.dataChannel {
 				log.Println(ac.Metric, value)
-				acc.AirQualitySensor.AirQuality.SetValue(int(value))
-				if value <= 50 {
-					acc.AirQualitySensor.AirQuality.SetValue(1)
-				}
-				if value > 50 && value <= 100 {
-					acc.AirQualitySensor.AirQuality.SetValue(2)
-				}
-				if value > 100 && value <= 150 {
-					acc.AirQualitySensor.AirQuality.SetValue(3)
-				}
-				if value > 150 && value <= 200 {
-					acc.AirQualitySensor.AirQuality.SetValue(4)
-				}
-				if value > 200 {
-					acc.AirQualitySensor.AirQuality.SetValue(5)
-				}
+				acc.AirQualitySensor.AirQuality.SetValue(airQualityValue(value))
 			}
 		}()
 		return acc.A
 	case "CarbonDioxideSensor":
 		acc := NewCarbonDioxideSensor(info)
-		// t, err := hap.NewServer(fs, acc.A)
-		// if err != nil {
-		// 	log.Println(acc)
-		// 	log.Panic(err)
-		// }
-		// t.Pin = ac.Pin
-		// go t.ListenAndServe(ctx)
 		go func() {
 			for value := range ac.dataChannel {
 				log.Println(ac.Metric, value)
@@ -167,11 +145,7 @@ func (ac *Accessorys) Task() *accessory.A {
 				if acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.Value() < value {
 					acc.CarbonDioxideSensor.CarbonDioxidePeakLevel.SetValue(value)
 				}
-				if value > 1200 {
-					acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(1)
-				} else {
-					acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(0)
-				}
+				acc.CarbonDioxideSensor.CarbonDioxideDetected.SetValue(co2DetectedValue(value))
 			}
 		}()
 		return acc.A
@@ -179,6 +153,28 @@ func (ac *Accessorys) Task() *accessory.A {
 		log.Println("test")
 	}
 	return nil
+}
+
+func airQualityValue(value float64) int {
+	switch {
+	case value <= 50:
+		return 1
+	case value <= 100:
+		return 2
+	case value <= 150:
+		return 3
+	case value <= 200:
+		return 4
+	default:
+		return 5
+	}
+}
+
+func co2DetectedValue(value float64) int {
+	if value > 1200 {
+		return 1
+	}
+	return 0
 }
 
 func (ac *Accessorys) AccessoryUpdate() {
