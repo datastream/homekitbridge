@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 
@@ -31,7 +31,7 @@ func ReadConfig(file string) (*HomekitBridge, error) {
 	if err != nil {
 		return nil, err
 	}
-	config, err := ioutil.ReadAll(configFile)
+	config, err := io.ReadAll(configFile)
 	if err != nil {
 		return nil, err
 	}
